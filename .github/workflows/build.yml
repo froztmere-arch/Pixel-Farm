@@ -1,0 +1,61 @@
+name: Build Pixel Farm APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract game ZIP
+        run: |
+          unzip pixelfarm.zip -d source
+          cd source/pixelfarm
+          test -f package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        working-directory: source/pixelfarm
+        run: npm install --no-audit --no-fund
+
+      - name: Build game
+        working-directory: source/pixelfarm
+        run: npm run build
+
+      - name: Create Android project
+        working-directory: source/pixelfarm
+        run: npx cap add android
+
+      - name: Patch Android project
+        working-directory: source/pixelfarm
+        run: node tools/patch-android.mjs
+
+      - name: Sync Android project
+        working-directory: source/pixelfarm
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: source/pixelfarm/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixelfarm-debug-apk
+          path: source/pixelfarm/android/app/build/outputs/apk/debug/app-debug.apk
